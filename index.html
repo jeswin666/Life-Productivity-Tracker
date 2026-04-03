@@ -1,0 +1,954 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>LifeOS — Personal Life Tracker</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
+<link href="https://fonts.googleapis.com/css2?family=DM+Serif+Display:ital@0;1&family=DM+Mono:wght@300;400;500&family=Syne:wght@400;600;700;800&display=swap" rel="stylesheet">
+<style>
+:root{--bg:#0a0a0f;--surface:#111118;--surface2:#1a1a24;--border:#2a2a3a;--accent:#c8f060;--accent2:#60c8f0;--accent3:#f060c8;--p1:#c8f060;--p2:#f060c8;--text:#e8e8f0;--muted:#7070a0;--danger:#f06060;--warn:#f0c060;--radius:16px;--radius-sm:8px}
+body.light{--bg:#f4f4f0;--surface:#ffffff;--surface2:#f0f0ea;--border:#ddddd5;--text:#1a1a24;--muted:#888890;--danger:#d94040;--warn:#c08020}
+body.light .expense-table td{border-bottom:1px solid rgba(180,180,170,.4)}
+body.light ::-webkit-scrollbar-track{background:#f0f0ea}
+body.light ::-webkit-scrollbar-thumb{background:#ccccc4}
+body.light input[type=date]{color-scheme:light}
+*{margin:0;padding:0;box-sizing:border-box}
+body{font-family:'DM Mono',monospace;background:var(--bg);color:var(--text);min-height:100vh;overflow-x:hidden;transition:background .3s,color .3s}
+.page{display:none;min-height:100vh;flex-direction:column}
+.page.active{display:flex}
+@keyframes fadeUp{from{opacity:0;transform:translateY(28px)}to{opacity:1;transform:translateY(0)}}
+
+/* NAV */
+.top-nav,.dash-nav{display:flex;align-items:center;justify-content:space-between;padding:16px 40px;border-bottom:1px solid var(--border);background:var(--surface);flex-wrap:wrap;gap:12px}
+.nav-logo{font-family:'DM Serif Display',serif;font-size:1.5rem}
+.nav-logo span{color:var(--accent)}
+.nav-right{display:flex;align-items:center;gap:12px;flex-wrap:wrap}
+.btn-ghost{background:none;border:1px solid var(--border);color:var(--muted);border-radius:var(--radius-sm);padding:8px 16px;font-family:'DM Mono',monospace;font-size:.8rem;cursor:pointer;transition:all .2s}
+.btn-ghost:hover{border-color:var(--accent);color:var(--accent)}
+.mode-badge{display:flex;align-items:center;gap:6px;background:var(--surface2);border:1px solid var(--border);border-radius:99px;padding:6px 14px;font-size:.75rem;color:var(--muted)}
+.mode-dot{width:8px;height:8px;border-radius:50%;background:var(--accent)}
+
+/* THEME TOGGLE */
+.theme-toggle{display:flex;align-items:center;gap:8px;cursor:pointer;background:var(--surface2);border:1px solid var(--border);border-radius:99px;padding:6px 14px;font-size:.78rem;color:var(--muted);transition:all .2s;user-select:none}
+.theme-toggle:hover{border-color:var(--accent);color:var(--accent)}
+.toggle-track{width:32px;height:18px;background:var(--border);border-radius:99px;position:relative;transition:background .3s;flex-shrink:0}
+.toggle-track.on{background:var(--accent)}
+.toggle-thumb{width:12px;height:12px;background:#fff;border-radius:50%;position:absolute;top:3px;left:3px;transition:transform .3s}
+.toggle-track.on .toggle-thumb{transform:translateX(14px);background:#0a0a0f}
+
+/* LANDING */
+#landingPage{align-items:center;justify-content:center;background:radial-gradient(ellipse at 20% 60%,#1a2a0a18 0%,transparent 55%),radial-gradient(ellipse at 80% 20%,#0a1a2a18 0%,transparent 55%)}
+.landing-wrap{width:100%;max-width:720px;padding:24px;text-align:center;animation:fadeUp .6s ease both}
+.big-logo{font-family:'DM Serif Display',serif;font-size:clamp(3rem,8vw,5.5rem);letter-spacing:-2px;line-height:1;margin-bottom:8px}
+.big-logo span{color:var(--accent)}
+.big-sub{font-size:.78rem;color:var(--muted);letter-spacing:4px;text-transform:uppercase;margin-bottom:60px}
+.landing-label{font-size:.72rem;color:var(--muted);letter-spacing:3px;text-transform:uppercase;margin-bottom:24px}
+.mode-cards{display:flex;gap:20px;justify-content:center;flex-wrap:wrap}
+.mode-card{background:var(--surface);border:2px solid var(--border);border-radius:var(--radius);padding:40px 32px;width:280px;cursor:pointer;transition:all .3s;text-align:center;position:relative;overflow:hidden}
+.mode-card::after{content:'';position:absolute;inset:0;opacity:0;transition:opacity .3s}
+.mode-card.p1-card::after{background:radial-gradient(ellipse at 50% 110%,rgba(200,240,96,.12),transparent 70%)}
+.mode-card.p2-card::after{background:radial-gradient(ellipse at 50% 110%,rgba(240,96,200,.12),transparent 70%)}
+.mode-card:hover{transform:translateY(-6px)}
+.mode-card:hover::after{opacity:1}
+.mode-card.p1-card:hover{border-color:var(--p1);box-shadow:0 24px 60px rgba(200,240,96,.15)}
+.mode-card.p2-card:hover{border-color:var(--p2);box-shadow:0 24px 60px rgba(240,96,200,.15)}
+.mode-icon{font-size:3rem;margin-bottom:20px;display:block}
+.mode-card h2{font-family:'DM Serif Display',serif;font-size:1.9rem;margin-bottom:8px}
+.mode-card p{color:var(--muted);font-size:.82rem;line-height:1.6}
+.mode-tag{display:inline-block;margin-top:20px;padding:6px 16px;border-radius:99px;font-size:.72rem;font-weight:600;letter-spacing:1px;text-transform:uppercase}
+.tag-green{background:rgba(200,240,96,.15);color:var(--p1);border:1px solid rgba(200,240,96,.3)}
+.tag-pink{background:rgba(240,96,200,.15);color:var(--p2);border:1px solid rgba(240,96,200,.3)}
+
+/* HOME 1P */
+.home-content{flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;padding:56px 20px;gap:48px}
+.home-hero{text-align:center;animation:fadeUp .5s ease both}
+.home-hero h1{font-family:'DM Serif Display',serif;font-size:clamp(2.2rem,5vw,4rem);line-height:1.1;margin-bottom:12px}
+.home-hero h1 em{color:var(--accent);font-style:italic}
+.home-hero p{color:var(--muted);font-size:.95rem;max-width:460px;line-height:1.7}
+.home-cards{display:flex;gap:20px;flex-wrap:wrap;justify-content:center;animation:fadeUp .5s .1s ease both}
+.home-card{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);padding:32px;width:300px;transition:all .3s;text-align:left}
+.home-card:hover{border-color:var(--accent);transform:translateY(-4px);box-shadow:0 20px 60px rgba(200,240,96,.1)}
+.card-icon{width:52px;height:52px;border-radius:12px;display:flex;align-items:center;justify-content:center;font-size:1.5rem;margin-bottom:18px}
+.icon-green{background:rgba(200,240,96,.15);border:1px solid rgba(200,240,96,.3)}
+.icon-blue{background:rgba(96,200,240,.15);border:1px solid rgba(96,200,240,.3)}
+.home-card h3{font-family:'Syne',sans-serif;font-size:1.1rem;font-weight:700;margin-bottom:8px}
+.home-card p{color:var(--muted);font-size:.82rem;line-height:1.6}
+.card-arrow{margin-top:20px;color:var(--accent);font-size:.78rem;display:flex;align-items:center;gap:8px;cursor:pointer}
+
+/* UPLOAD */
+.upload-zone{border:2px dashed var(--border);border-radius:var(--radius);padding:28px;text-align:center;transition:all .3s;margin-top:14px;cursor:pointer}
+.upload-zone:hover{border-color:var(--accent2);background:rgba(96,200,240,.05)}
+.upload-zone input{display:none}
+.upload-zone p{color:var(--muted);font-size:.8rem;margin-top:6px}
+.upload-filename{font-size:.82rem;margin-top:8px;display:none}
+.fn-green{color:var(--p1)}
+.fn-pink{color:var(--p2)}
+.btn-go{display:none;width:100%;margin-top:14px;background:linear-gradient(135deg,var(--accent),var(--accent2));color:#0a0a0f;border:none;border-radius:var(--radius-sm);padding:13px;font-family:'Syne',sans-serif;font-weight:800;font-size:.95rem;letter-spacing:2px;cursor:pointer;transition:all .3s;text-transform:uppercase}
+.btn-go:hover{transform:translateY(-2px);box-shadow:0 12px 40px rgba(200,240,96,.25)}
+.btn-primary{background:var(--accent);color:#0a0a0f;border:none;border-radius:var(--radius-sm);padding:12px 20px;font-family:'Syne',sans-serif;font-weight:700;font-size:.88rem;letter-spacing:1px;cursor:pointer;transition:all .2s;text-transform:uppercase;white-space:nowrap}
+.btn-primary:hover{background:#d8ff70;transform:translateY(-1px)}
+
+/* 2P HOME */
+#twoPlayerPage{background:var(--bg)}
+.twop-content{flex:1;display:flex;flex-direction:column;align-items:center;padding:44px 24px;gap:28px}
+.twop-hero{text-align:center;animation:fadeUp .5s ease both}
+.twop-hero h1{font-family:'DM Serif Display',serif;font-size:clamp(1.9rem,4vw,3rem);margin-bottom:10px}
+.twop-hero p{color:var(--muted);font-size:.86rem;max-width:520px;line-height:1.7}
+.twop-dl-bar{width:100%;max-width:860px;background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);padding:20px 28px;display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:12px;animation:fadeUp .5s .05s ease both}
+.twop-grid{display:grid;grid-template-columns:1fr auto 1fr;gap:20px;width:100%;max-width:860px;align-items:start;animation:fadeUp .5s .1s ease both}
+.twop-col{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);padding:26px}
+.twop-col.p1-col{border-top:3px solid var(--p1)}
+.twop-col.p2-col{border-top:3px solid var(--p2)}
+.player-label{font-family:'Syne',sans-serif;font-weight:800;font-size:1rem;margin-bottom:3px}
+.player-label.p1{color:var(--p1)}
+.player-label.p2{color:var(--p2)}
+.player-sub{color:var(--muted);font-size:.75rem;margin-bottom:16px}
+.vs-divider{display:flex;align-items:center;justify-content:center;padding-top:80px}
+.vs-circle{width:50px;height:50px;background:var(--surface2);border:2px solid var(--border);border-radius:50%;display:flex;align-items:center;justify-content:center;font-family:'DM Serif Display',serif;font-size:1rem;color:var(--muted)}
+.name-input{width:100%;background:var(--surface2);border:1px solid var(--border);border-radius:var(--radius-sm);padding:10px 14px;color:var(--text);font-family:'DM Mono',monospace;font-size:.88rem;outline:none;margin-top:4px;transition:border-color .2s}
+.name-input:focus{border-color:var(--accent)}
+label{font-size:.68rem;color:var(--muted);letter-spacing:1px;text-transform:uppercase;display:block;margin-bottom:4px}
+
+/* DASHBOARD */
+.dash-nav-left{display:flex;align-items:center;gap:16px;flex-wrap:wrap}
+.filter-group{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+.filter-label{font-size:.7rem;color:var(--muted);text-transform:uppercase;letter-spacing:1px}
+select{background:var(--surface2);border:1px solid var(--border);border-radius:var(--radius-sm);padding:8px 12px;color:var(--text);font-family:'DM Mono',monospace;font-size:.8rem;cursor:pointer;outline:none;transition:border-color .2s}
+select:focus{border-color:var(--accent)}
+input[type=date]{background:var(--surface2);border:1px solid var(--border);border-radius:var(--radius-sm);padding:8px 12px;color:var(--text);font-family:'DM Mono',monospace;font-size:.8rem;outline:none;transition:border-color .2s;color-scheme:dark}
+input[type=date]:focus{border-color:var(--accent)}
+.btn-filter{background:var(--accent);color:#0a0a0f;border:none;border-radius:var(--radius-sm);padding:8px 18px;font-family:'Syne',sans-serif;font-weight:700;font-size:.78rem;cursor:pointer;transition:all .2s}
+.btn-filter:hover{background:#d8ff70}
+.dash-content{padding:28px 32px;overflow-y:auto;flex:1}
+
+/* KPI */
+.section-title{font-family:'DM Serif Display',serif;font-size:1.3rem;margin-bottom:16px;display:flex;align-items:center;gap:12px}
+.section-title::after{content:'';flex:1;height:1px;background:var(--border)}
+.kpi-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(172px,1fr));gap:13px;margin-bottom:30px}
+.kpi-card{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);padding:18px;position:relative;overflow:hidden;transition:transform .2s}
+.kpi-card:hover{transform:translateY(-2px)}
+.kpi-card::before{content:'';position:absolute;bottom:0;left:0;right:0;height:3px}
+.kpi-card.green::before{background:var(--accent)}.kpi-card.blue::before{background:var(--accent2)}.kpi-card.pink::before{background:var(--accent3)}.kpi-card.warn::before{background:var(--warn)}.kpi-card.red::before{background:var(--danger)}
+.kpi-label{font-size:.68rem;color:var(--muted);text-transform:uppercase;letter-spacing:1px;margin-bottom:8px}
+.kpi-value{font-family:'DM Serif Display',serif;font-size:1.9rem;line-height:1}
+.kpi-value.green{color:var(--accent)}.kpi-value.blue{color:var(--accent2)}.kpi-value.pink{color:var(--accent3)}.kpi-value.warn{color:var(--warn)}.kpi-value.red{color:var(--danger)}
+.kpi-sub{font-size:.68rem;color:var(--muted);margin-top:4px}
+
+/* CHARTS */
+.chart-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(440px,1fr));gap:16px;margin-bottom:28px}
+.chart-grid-3{display:grid;grid-template-columns:repeat(auto-fill,minmax(280px,1fr));gap:16px;margin-bottom:28px}
+.chart-card{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);padding:22px}
+.chart-card h4{font-family:'Syne',sans-serif;font-size:.8rem;font-weight:700;color:var(--muted);margin-bottom:14px;text-transform:uppercase;letter-spacing:1px}
+.chart-card canvas{max-height:240px}
+
+/* HABITS */
+.habit-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(230px,1fr));gap:10px;margin-bottom:30px}
+.habit-row{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius-sm);padding:12px 16px;display:flex;align-items:center;gap:10px}
+.habit-name{font-size:.8rem;min-width:110px}
+.habit-bar-wrap{flex:1;height:6px;background:var(--surface2);border-radius:99px;overflow:hidden}
+.habit-bar{height:100%;border-radius:99px;transition:width .8s ease}
+.habit-pct{font-size:.78rem;min-width:34px;text-align:right}
+
+/* EXPENSE TABLE */
+.expense-table{width:100%;border-collapse:collapse;font-size:.8rem}
+.expense-table th{text-align:left;padding:10px 14px;font-size:.68rem;color:var(--muted);text-transform:uppercase;letter-spacing:1px;border-bottom:1px solid var(--border)}
+.expense-table td{padding:11px 14px;border-bottom:1px solid rgba(42,42,58,.5)}
+.expense-table tr:hover td{background:var(--surface2)}
+.cat-badge{display:inline-block;padding:3px 10px;border-radius:99px;font-size:.68rem;font-weight:600}
+
+/* COMPARISON */
+.comp-kpi-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(300px,1fr));gap:16px;margin-bottom:28px}
+.winner-badge{display:inline-flex;align-items:center;font-size:.68rem;padding:3px 10px;border-radius:99px;font-weight:600;white-space:nowrap}
+.win-green{background:rgba(200,240,96,.15);color:var(--p1)}
+.win-pink{background:rgba(240,96,200,.15);color:var(--p2)}
+
+/* MODAL */
+.modal-overlay{position:fixed;inset:0;background:rgba(0,0,0,.7);z-index:100;display:none;align-items:center;justify-content:center;backdrop-filter:blur(4px)}
+.modal-overlay.active{display:flex}
+.modal{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);padding:36px;max-width:450px;width:90%;animation:fadeUp .3s ease both}
+.modal h3{font-family:'DM Serif Display',serif;font-size:1.5rem;margin-bottom:10px}
+.modal p{color:var(--muted);font-size:.82rem;line-height:1.7;margin-bottom:20px}
+.modal-actions{display:flex;gap:10px}
+.btn-close{background:none;border:1px solid var(--border);border-radius:var(--radius-sm);padding:11px 18px;color:var(--muted);font-family:'DM Mono',monospace;font-size:.82rem;cursor:pointer}
+
+/* QUOTE BANNER */
+.quote-banner{background:linear-gradient(135deg,rgba(200,240,96,.08),rgba(96,200,240,.06));border:1px solid rgba(200,240,96,.2);border-radius:var(--radius);padding:18px 24px;margin-bottom:24px;display:flex;align-items:center;gap:16px;position:relative;overflow:hidden}
+.quote-banner::before{content:'';position:absolute;inset:0;background:linear-gradient(90deg,transparent,rgba(200,240,96,.03),transparent);animation:shimmer 3s infinite}
+@keyframes shimmer{0%{transform:translateX(-100%)}100%{transform:translateX(100%)}}
+.quote-icon{font-size:1.6rem;flex-shrink:0}
+.quote-text{flex:1;font-family:'DM Serif Display',serif;font-size:1.05rem;line-height:1.5;color:var(--text);font-style:italic}
+.quote-author{font-size:.72rem;color:var(--muted);margin-top:4px;font-style:normal;font-family:'DM Mono',monospace}
+.quote-refresh{background:none;border:1px solid rgba(200,240,96,.3);border-radius:var(--radius-sm);padding:8px 12px;color:var(--accent);cursor:pointer;font-size:.8rem;transition:all .2s;flex-shrink:0;white-space:nowrap}
+.quote-refresh:hover{background:rgba(200,240,96,.1);border-color:var(--accent)}
+.quote-refresh.spinning{animation:spin .6s linear}
+@keyframes spin{from{transform:rotate(0deg)}to{transform:rotate(360deg)}}
+
+/* AI INSIGHTS */
+.ai-section{margin-bottom:28px}
+.ai-insights-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(300px,1fr));gap:14px}
+.ai-card{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);padding:20px;position:relative;overflow:hidden;transition:transform .2s}
+.ai-card:hover{transform:translateY(-2px)}
+.ai-card::before{content:'';position:absolute;top:0;left:0;bottom:0;width:3px}
+.ai-card.ai-danger::before{background:var(--danger)}
+.ai-card.ai-warn::before{background:var(--warn)}
+.ai-card.ai-good::before{background:var(--accent)}
+.ai-card.ai-tip::before{background:var(--accent2)}
+.ai-card-icon{font-size:1.4rem;margin-bottom:10px}
+.ai-card-title{font-family:'Syne',sans-serif;font-weight:700;font-size:.88rem;margin-bottom:6px}
+.ai-card-body{font-size:.8rem;color:var(--muted);line-height:1.6}
+.ai-card-stat{font-family:'DM Serif Display',serif;font-size:1.3rem;margin-top:6px}
+.ai-card.ai-danger .ai-card-stat{color:var(--danger)}
+.ai-card.ai-warn .ai-card-stat{color:var(--warn)}
+.ai-card.ai-good .ai-card-stat{color:var(--accent)}
+.ai-card.ai-tip .ai-card-stat{color:var(--accent2)}
+.ai-loading{display:flex;align-items:center;gap:12px;padding:20px;color:var(--muted);font-size:.85rem}
+.ai-spinner{width:20px;height:20px;border:2px solid var(--border);border-top-color:var(--accent);border-radius:50%;animation:spin .7s linear infinite;flex-shrink:0}
+.ai-claude-badge{display:inline-flex;align-items:center;gap:6px;background:rgba(200,240,96,.1);border:1px solid rgba(200,240,96,.25);border-radius:99px;padding:4px 12px;font-size:.7rem;color:var(--accent);margin-bottom:14px}
+.ai-full-box{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);padding:24px;position:relative;overflow:hidden}
+.ai-full-box::before{content:'';position:absolute;top:0;left:0;right:0;height:2px;background:linear-gradient(90deg,var(--accent),var(--accent2),var(--accent3))}
+.ai-text{font-size:.85rem;line-height:1.8;color:var(--text);white-space:pre-wrap}
+.ai-text strong{color:var(--accent);font-weight:600}
+.ai-refresh-btn{background:linear-gradient(135deg,rgba(200,240,96,.15),rgba(96,200,240,.1));border:1px solid rgba(200,240,96,.3);border-radius:var(--radius-sm);padding:9px 18px;color:var(--accent);cursor:pointer;font-family:'Syne',sans-serif;font-weight:700;font-size:.78rem;transition:all .2s;margin-top:16px}
+.ai-refresh-btn:hover{background:rgba(200,240,96,.2)}
+
+/* TIGHTER LAYOUT */
+.kpi-grid{grid-template-columns:repeat(auto-fill,minmax(155px,1fr))}
+.chart-card canvas{max-height:220px}
+.chart-grid{grid-template-columns:1fr 1fr}
+.chart-grid-3{grid-template-columns:1fr 1fr 1fr}
+.dash-content{padding:22px 28px}
+
+/* SECTION TABS */
+.section-tabs{display:flex;gap:4px;background:var(--surface2);border-radius:var(--radius-sm);padding:4px;margin-bottom:18px;width:fit-content}
+.stab{padding:7px 20px;border-radius:6px;font-family:'DM Mono',monospace;font-size:.78rem;color:var(--muted);cursor:pointer;border:none;background:none;transition:all .2s}
+.stab.active{background:var(--surface);color:var(--text);box-shadow:0 1px 4px rgba(0,0,0,.3)}
+.stab-panel{display:none}.stab-panel.active{display:block}
+
+/* LOG TABS */
+.log-tabs{display:flex;gap:0;border-bottom:1px solid var(--border);margin-bottom:18px}
+.ltab{padding:10px 22px;font-family:'DM Mono',monospace;font-size:.78rem;color:var(--muted);cursor:pointer;border:none;background:none;border-bottom:2px solid transparent;margin-bottom:-1px;transition:all .2s}
+.ltab.active{color:var(--accent);border-bottom-color:var(--accent)}
+.ltab-panel{display:none}.ltab-panel.active{display:block}
+
+/* MISC */
+::-webkit-scrollbar{width:6px}
+::-webkit-scrollbar-track{background:var(--surface)}
+::-webkit-scrollbar-thumb{background:var(--border);border-radius:99px}
+@media(max-width:700px){.top-nav,.dash-nav{padding:12px 16px}.dash-content{padding:14px}.chart-grid{grid-template-columns:1fr}.chart-grid-3{grid-template-columns:1fr}.comp-kpi-grid,.ai-insights-grid{grid-template-columns:1fr}.twop-grid{grid-template-columns:1fr}.vs-divider{display:none}.home-card,.mode-card{width:100%}}
+</style>
+</head>
+<body>
+
+<!-- LANDING -->
+<div id="landingPage" class="page active">
+  <div style="position:absolute;top:20px;right:24px;z-index:10">
+    <div class="theme-toggle" onclick="toggleTheme()"><span id="tiLand">🌙</span><div class="toggle-track" id="ttLand"><div class="toggle-thumb"></div></div></div>
+  </div>
+  <div class="landing-wrap">
+    <div class="big-logo">Life<span>OS</span></div>
+    <div class="big-sub">Personal Intelligence System</div>
+    <div class="landing-label">Choose your mode</div>
+    <div class="mode-cards">
+      <div class="mode-card p1-card" onclick="goOnePlayer()">
+        <span class="mode-icon">🧑</span>
+        <h2>1 Player</h2>
+        <p>Upload your personal data and explore deep insights about your own habits and progress.</p>
+        <div class="mode-tag tag-green">Solo Dashboard →</div>
+      </div>
+      <div class="mode-card p2-card" onclick="goTwoPlayer()">
+        <span class="mode-icon">👥</span>
+        <h2>2 Players</h2>
+        <p>Upload two datasets and see a full head-to-head comparison across every metric and habit.</p>
+        <div class="mode-tag tag-pink">Versus Mode →</div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- 1P HOME -->
+<div id="homePage" class="page">
+  <nav class="top-nav">
+    <div class="nav-logo">Life<span>OS</span></div>
+    <div class="nav-right">
+      <div class="mode-badge"><div class="mode-dot"></div>1 Player</div>
+      <div class="theme-toggle" onclick="toggleTheme()"><span id="ti1P">🌙</span><div class="toggle-track" id="tt1P"><div class="toggle-thumb"></div></div></div>
+      <button class="btn-ghost" onclick="showPage('landingPage')">← Mode Select</button>
+    </div>
+  </nav>
+  <div class="home-content">
+    <div class="home-hero">
+      <h1>Track your life,<br><em>understand yourself.</em></h1>
+      <p>Upload your daily log and get instant visual insights across every dimension of your life.</p>
+    </div>
+    <div class="home-cards">
+      <div class="home-card" onclick="showDownloadModal()" style="cursor:pointer">
+        <div class="card-icon icon-green">📋</div>
+        <h3>Download Template</h3>
+        <p>Get the blank Excel template with all the right columns, ready for daily tracking.</p>
+        <div class="card-arrow">Download .xlsx →</div>
+      </div>
+      <div class="home-card" style="cursor:default">
+        <div class="card-icon icon-blue">📊</div>
+        <h3>Upload Your Data</h3>
+        <p>Drop or click to upload your filled Excel file. Only .xlsx / .xls accepted.</p>
+        <div class="upload-zone" onclick="document.getElementById('fi1P').click()">
+          <div style="font-size:1.8rem">⬆️</div>
+          <p>Drop your Excel file here or click to browse</p>
+          <p style="font-size:.72rem;margin-top:3px">Accepted: .xlsx, .xls only</p>
+          <input type="file" id="fi1P" accept=".xlsx,.xls" onchange="handleFile1P(this)">
+          <div class="upload-filename fn-green" id="uf1P"></div>
+        </div>
+        <button class="btn-go" id="go1P" onclick="goDashboard1P()">GO — View Dashboard →</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- 2P HOME -->
+<div id="twoPlayerPage" class="page">
+  <nav class="top-nav">
+    <div class="nav-logo">Life<span>OS</span></div>
+    <div class="nav-right">
+      <div class="mode-badge" style="border-color:rgba(240,96,200,.4)"><div class="mode-dot" style="background:var(--p2)"></div>2 Players</div>
+      <div class="theme-toggle" onclick="toggleTheme()"><span id="ti2P">🌙</span><div class="toggle-track" id="tt2P"><div class="toggle-thumb"></div></div></div>
+      <button class="btn-ghost" onclick="showPage('landingPage')">← Mode Select</button>
+    </div>
+  </nav>
+  <div class="twop-content">
+    <div class="twop-hero">
+      <h1>Head-to-Head <em style="color:var(--p2);font-style:italic">Comparison</em></h1>
+      <p>Upload both players' files, enter names, then hit GO for a full side-by-side breakdown.</p>
+    </div>
+    <div class="twop-dl-bar">
+      <div>
+        <div style="font-family:'Syne',sans-serif;font-weight:700;margin-bottom:3px">📋 Download Template</div>
+        <div style="color:var(--muted);font-size:.78rem">Each player fills in their own copy of the same template</div>
+      </div>
+      <button class="btn-primary" onclick="downloadTemplate()">Download .xlsx →</button>
+    </div>
+    <div class="twop-grid">
+      <div class="twop-col p1-col">
+        <div class="player-label p1">Player 1</div>
+        <div class="player-sub">Upload Player 1's Excel file</div>
+        <div class="upload-zone" onclick="document.getElementById('fiP1').click()">
+          <div style="font-size:1.8rem">⬆️</div>
+          <p>Click to browse or drop here</p>
+          <p style="font-size:.72rem;margin-top:3px">.xlsx / .xls only</p>
+          <input type="file" id="fiP1" accept=".xlsx,.xls" onchange="handleFileP1(this)">
+          <div class="upload-filename fn-green" id="ufP1"></div>
+        </div>
+        <div id="p1NameWrap" style="margin-top:14px;display:none">
+          <label>Player 1 Name</label>
+          <input type="text" id="p1Name" class="name-input" placeholder="e.g. Jeswin">
+        </div>
+      </div>
+      <div class="vs-divider"><div class="vs-circle">VS</div></div>
+      <div class="twop-col p2-col">
+        <div class="player-label p2">Player 2</div>
+        <div class="player-sub">Upload Player 2's Excel file</div>
+        <div class="upload-zone" onclick="document.getElementById('fiP2').click()">
+          <div style="font-size:1.8rem">⬆️</div>
+          <p>Click to browse or drop here</p>
+          <p style="font-size:.72rem;margin-top:3px">.xlsx / .xls only</p>
+          <input type="file" id="fiP2" accept=".xlsx,.xls" onchange="handleFileP2(this)">
+          <div class="upload-filename fn-pink" id="ufP2"></div>
+        </div>
+        <div id="p2NameWrap" style="margin-top:14px;display:none">
+          <label>Player 2 Name</label>
+          <input type="text" id="p2Name" class="name-input" placeholder="e.g. Alex">
+        </div>
+      </div>
+    </div>
+    <div style="width:100%;max-width:860px">
+      <button class="btn-go" id="goComp" style="max-width:860px" onclick="goComparison()">GO — Compare Players →</button>
+    </div>
+  </div>
+</div>
+
+<!-- 1P DASHBOARD -->
+<div id="dashPage" class="page">
+  <nav class="dash-nav">
+    <div class="dash-nav-left">
+      <div class="nav-logo" style="font-size:1.1rem;font-family:'DM Serif Display',serif">Life<span style="color:var(--accent)">OS</span></div>
+      <div class="filter-group">
+        <span class="filter-label">Month</span>
+        <select id="filterMonth" onchange="applyFilters()"><option value="">All Months</option></select>
+        <span class="filter-label">From</span><input type="date" id="filterFrom" onchange="applyFilters()">
+        <span class="filter-label">To</span><input type="date" id="filterTo" onchange="applyFilters()">
+        <button class="btn-filter" onclick="resetFilters()">Reset</button>
+      </div>
+    </div>
+    <div class="nav-right">
+      <div class="theme-toggle" onclick="toggleTheme()"><span id="tiDash">🌙</span><div class="toggle-track" id="ttDash"><div class="toggle-thumb"></div></div></div>
+      <button class="btn-ghost" onclick="showPage('homePage')">← Back</button>
+    </div>
+  </nav>
+  <div class="dash-content" id="dashContent"></div>
+</div>
+
+<!-- 2P COMPARISON DASHBOARD -->
+<div id="compPage" class="page">
+  <nav class="dash-nav">
+    <div class="dash-nav-left">
+      <div class="nav-logo" style="font-size:1.1rem;font-family:'DM Serif Display',serif">Life<span style="color:var(--accent)">OS</span></div>
+      <div class="filter-group">
+        <span class="filter-label">Month</span>
+        <select id="cFilterMonth" onchange="applyCompFilters()"><option value="">All Months</option></select>
+        <span class="filter-label">From</span><input type="date" id="cFilterFrom" onchange="applyCompFilters()">
+        <span class="filter-label">To</span><input type="date" id="cFilterTo" onchange="applyCompFilters()">
+        <button class="btn-filter" onclick="resetCompFilters()">Reset</button>
+      </div>
+    </div>
+    <div class="nav-right">
+      <div class="theme-toggle" onclick="toggleTheme()"><span id="tiComp">🌙</span><div class="toggle-track" id="ttComp"><div class="toggle-thumb"></div></div></div>
+      <button class="btn-ghost" onclick="showPage('twoPlayerPage')">← Back</button>
+    </div>
+  </nav>
+  <div class="dash-content" id="compContent"></div>
+</div>
+
+<!-- MODAL -->
+<div class="modal-overlay" id="dlModal">
+  <div class="modal">
+    <h3>📋 Excel Template</h3>
+    <p>Blank template with all required columns. Each player fills their own copy daily.</p>
+    <div class="modal-actions">
+      <button class="btn-primary" onclick="downloadTemplate()">Download Template</button>
+      <button class="btn-close" onclick="closeModal()">Cancel</button>
+    </div>
+  </div>
+</div>
+
+<script>
+let rawData=[],filteredData=[],charts={};
+let rawP1=[],rawP2=[],filtP1=[],filtP2=[],chartsComp={};
+let nm1='Player 1',nm2='Player 2',isLight=false;
+
+const THEME_ICONS=['tiLand','ti1P','ti2P','tiDash','tiComp'];
+const TRACKS=['ttLand','tt1P','tt2P','ttDash','ttComp'];
+
+function showPage(id){document.querySelectorAll('.page').forEach(p=>p.classList.remove('active'));document.getElementById(id).classList.add('active');}
+function goOnePlayer(){showPage('homePage');}
+function goTwoPlayer(){showPage('twoPlayerPage');}
+
+function toggleTheme(){
+  isLight=!isLight;
+  document.body.classList.toggle('light',isLight);
+  const icon=isLight?'☀️':'🌙';
+  THEME_ICONS.forEach(id=>{const el=document.getElementById(id);if(el)el.textContent=icon;});
+  TRACKS.forEach(id=>{const el=document.getElementById(id);if(el)el.classList.toggle('on',isLight);});
+  Chart.defaults.color=isLight?'#888890':'#7070a0';
+  Chart.defaults.borderColor=isLight?'#ddddd5':'#2a2a3a';
+  if(filteredData.length)renderDashboard();
+  if(filtP1.length&&filtP2.length)renderComparison();
+}
+
+function showDownloadModal(){document.getElementById('dlModal').classList.add('active');}
+function closeModal(){document.getElementById('dlModal').classList.remove('active');}
+function downloadTemplate(){
+  const cols=['Date','Player','Studying (Mins)','Working (Mins)','Exercise','Reading (Pages)','Reading (Mins)','Journal','Skill Upgrade (Mins)','Skin Care','Supplements','Job Application','Social (Mins)','Youtube / Netflix (Mins)','Lost Reboot','System Reboot','Oversleeping (Hours)','Junk Food','Mindset (1/0)','Expense Category','Expense ITEM','Expense Amount (KWD)','News Headlines','Eye Contact','Observe Baseline','Observe Feet','Confidence','Good Q','Word','GF','Meditation','Handwriting','Water'];
+  const wb=XLSX.utils.book_new(),ws=XLSX.utils.aoa_to_sheet([cols]);
+  ws['!cols']=cols.map(()=>({wch:22}));
+  XLSX.utils.book_append_sheet(wb,ws,'Sheet1');
+  XLSX.writeFile(wb,'LifeOS_Template.xlsx');
+  closeModal();
+}
+
+function normalizeRow(row){
+  const map={'Date':'Date','Player':'Player','Studying (Mins)':'studying','Working (Mins)':'working','Exercise':'exercise','Reading (Pages) ':'reading_pages','Reading (Pages)':'reading_pages','Reading (Mins) ':'reading_mins','Reading (Mins)':'reading_mins','Jour0al':'journal','Journal':'journal','Skill Upgrade (Mins)':'skill','Ski0 Care':'skincare','Skin Care':'skincare','Supplime0ts':'supplements','Supplements':'supplements','Job Application':'job_app','Social  (Mins)':'social','Social (Mins)':'social','Youtube / Netflix (Mins)':'youtube','lost reboot':'lost_reboot','Lost Reboot':'lost_reboot','S1stem Reboot':'system_reboot','System Reboot':'system_reboot','Oversleeping (Hours)':'oversleep','Ju0k Food':'junk_food','Junk Food':'junk_food','Mindset (1 / 0)':'mindset','Mindset (1/0)':'mindset','Expense Category':'expense_cat','Expense ITEM':'expense_item','expense amount':'expense_amt','Expense Amount (KWD)':'expense_amt','news headlines':'news','News Headlines':'news','eye contact':'eye_contact','Eye Contact':'eye_contact','observe baseline':'observe_base','Observe Baseline':'observe_base','observe feet':'observe_feet','Observe Feet':'observe_feet','confidence':'confidence','Confidence':'confidence','good Q':'good_q','Good Q':'good_q','Word ':'word','Word':'word','gf':'gf','GF':'gf','meditation':'meditation','Meditation':'meditation','handwriting':'handwriting','Handwriting':'handwriting','Water':'water','Clouds':'clouds','investment':'investment','Currency':'currency','inv amount':'inv_amount'};
+  const out={};
+  for(const[k,v]of Object.entries(row)){out[map[k]||k]=v;}
+  if(out.Date){const d=out.Date;out.Date=d instanceof Date?d:new Date(d);}
+  return out;
+}
+function readXL(file,cb){
+  const ext=file.name.split('.').pop().toLowerCase();
+  if(!['xlsx','xls'].includes(ext)){alert('Only .xlsx or .xls files are accepted.');return;}
+  const r=new FileReader();
+  r.onload=e=>{const wb=XLSX.read(e.target.result,{type:'binary',cellDates:true});cb(XLSX.utils.sheet_to_json(wb.Sheets[wb.SheetNames[0]],{defval:0}).map(normalizeRow));};
+  r.readAsBinaryString(file);
+}
+
+function handleFile1P(inp){if(!inp.files[0])return;readXL(inp.files[0],d=>{rawData=d;document.getElementById('uf1P').textContent='✓ '+inp.files[0].name;document.getElementById('uf1P').style.display='block';document.getElementById('go1P').style.display='block';});}
+function goDashboard1P(){if(!rawData.length){alert('Please wait for file to load.');return;}filteredData=[...rawData];popMonthSel();setDateRange();renderDashboard();showPage('dashPage');}
+
+function handleFileP1(inp){if(!inp.files[0])return;readXL(inp.files[0],d=>{rawP1=d;document.getElementById('ufP1').textContent='✓ '+inp.files[0].name;document.getElementById('ufP1').style.display='block';document.getElementById('p1NameWrap').style.display='block';checkCompBtn();});}
+function handleFileP2(inp){if(!inp.files[0])return;readXL(inp.files[0],d=>{rawP2=d;document.getElementById('ufP2').textContent='✓ '+inp.files[0].name;document.getElementById('ufP2').style.display='block';document.getElementById('p2NameWrap').style.display='block';checkCompBtn();});}
+function checkCompBtn(){if(rawP1.length&&rawP2.length)document.getElementById('goComp').style.display='block';}
+function goComparison(){
+  if(!rawP1.length||!rawP2.length){alert('Please upload both files.');return;}
+  nm1=document.getElementById('p1Name').value.trim()||'Player 1';
+  nm2=document.getElementById('p2Name').value.trim()||'Player 2';
+  filtP1=[...rawP1];filtP2=[...rawP2];
+  popCompMonthSel();setCompDateRange();renderComparison();showPage('compPage');
+}
+
+// Filters 1P
+function popMonthSel(){
+  const sel=document.getElementById('filterMonth');sel.innerHTML='<option value="">All Months</option>';
+  const months=new Set();rawData.forEach(r=>{if(r.Date instanceof Date)months.add(r.Date.getFullYear()+'-'+String(r.Date.getMonth()+1).padStart(2,'0'));});
+  [...months].sort().forEach(m=>{const[y,mo]=m.split('-');sel.innerHTML+=`<option value="${m}">${new Date(y,mo-1).toLocaleString('default',{month:'long',year:'numeric'})}</option>`;});
+}
+function setDateRange(){const dates=rawData.map(r=>r.Date).filter(d=>d instanceof Date).sort((a,b)=>a-b);if(dates.length){document.getElementById('filterFrom').value=fmt(dates[0]);document.getElementById('filterTo').value=fmt(dates[dates.length-1]);}}
+function applyFilters(){const mo=document.getElementById('filterMonth').value,fr=document.getElementById('filterFrom').value,to=document.getElementById('filterTo').value;filteredData=rawData.filter(r=>{if(!(r.Date instanceof Date))return false;const ds=fmt(r.Date);if(mo&&r.Date.getFullYear()+'-'+String(r.Date.getMonth()+1).padStart(2,'0')!==mo)return false;if(fr&&ds<fr)return false;if(to&&ds>to)return false;return true;});renderDashboard();}
+function resetFilters(){document.getElementById('filterMonth').value='';setDateRange();filteredData=[...rawData];renderDashboard();}
+
+// Filters 2P
+function popCompMonthSel(){
+  const sel=document.getElementById('cFilterMonth');sel.innerHTML='<option value="">All Months</option>';
+  const months=new Set();[...rawP1,...rawP2].forEach(r=>{if(r.Date instanceof Date)months.add(r.Date.getFullYear()+'-'+String(r.Date.getMonth()+1).padStart(2,'0'));});
+  [...months].sort().forEach(m=>{const[y,mo]=m.split('-');sel.innerHTML+=`<option value="${m}">${new Date(y,mo-1).toLocaleString('default',{month:'long',year:'numeric'})}</option>`;});
+}
+function setCompDateRange(){const dates=[...rawP1,...rawP2].map(r=>r.Date).filter(d=>d instanceof Date).sort((a,b)=>a-b);if(dates.length){document.getElementById('cFilterFrom').value=fmt(dates[0]);document.getElementById('cFilterTo').value=fmt(dates[dates.length-1]);}}
+function filterDS(data,mo,fr,to){return data.filter(r=>{if(!(r.Date instanceof Date))return false;const ds=fmt(r.Date);if(mo&&r.Date.getFullYear()+'-'+String(r.Date.getMonth()+1).padStart(2,'0')!==mo)return false;if(fr&&ds<fr)return false;if(to&&ds>to)return false;return true;});}
+function applyCompFilters(){const mo=document.getElementById('cFilterMonth').value,fr=document.getElementById('cFilterFrom').value,to=document.getElementById('cFilterTo').value;filtP1=filterDS(rawP1,mo,fr,to);filtP2=filterDS(rawP2,mo,fr,to);renderComparison();}
+function resetCompFilters(){document.getElementById('cFilterMonth').value='';setCompDateRange();filtP1=[...rawP1];filtP2=[...rawP2];renderComparison();}
+
+// Utils
+const nv=x=>isNaN(x)?0:+x;
+function av(arr,key){const v=arr.map(r=>nv(r[key])).filter(v=>v>0);return v.length?v.reduce((a,b)=>a+b,0)/v.length:0;}
+function sm(arr,key){return arr.reduce((a,r)=>a+nv(r[key]),0);}
+function pc(arr,key){return arr.length?Math.round(arr.filter(r=>nv(r[key])===1).length/arr.length*100):0;}
+function r1(x){return Math.round(x*10)/10;}
+function fmt(d){return d.toISOString().slice(0,10);}
+function getWeek(date){const d=new Date(Date.UTC(date.getFullYear(),date.getMonth(),date.getDate()));d.setUTCDate(d.getUTCDate()+4-(d.getUTCDay()||7));const y=new Date(Date.UTC(d.getUTCFullYear(),0,1));return Math.ceil((((d-y)/86400000)+1)/7);}
+const tc=()=>isLight?'#888890':'#7070a0';
+const gc=()=>isLight?'#ddddd5':'#2a2a3a';
+const txC=()=>isLight?'#1a1a24':'#e8e8f0';
+const xA=()=>({ticks:{color:tc(),font:{family:'DM Mono',size:10},maxTicksLimit:10,maxRotation:30},grid:{color:gc()}});
+const yA=()=>({ticks:{color:tc(),font:{family:'DM Mono',size:10}},grid:{color:gc()}});
+const leg=()=>({labels:{color:txC(),font:{family:'DM Mono',size:11},boxWidth:12}});
+const CC={g:'#c8f060',b:'#60c8f0',p:'#f060c8',w:'#f0c060',r:'#f06060'};
+
+// 1P Dashboard
+function renderDashboard(){
+  Object.values(charts).forEach(c=>c.destroy());charts={};
+  const d=filteredData,N=d.length||1;
+  const rR=d.filter(r=>nv(r.reading_mins)>0);
+  const spd=rR.length?r1(rR.reduce((a,r)=>a+(nv(r.reading_pages)/nv(r.reading_mins)*60),0)/rR.length):0;
+  const aExp=r1(sm(d,'expense_amt')/N),tExp=r1(sm(d,'expense_amt'));
+  const aStuM=r1(av(d,'studying')),aWrkM=r1(av(d,'working')),aSk=r1(av(d,'skill'));
+  const aSocM=r1(av(d,'social')),aYTM=r1(av(d,'youtube')),aOs=r1(av(d,'oversleep'));
+  const aStu=r1(aStuM/60),aWrk=r1(aWrkM/60),aSoc=r1(aSocM/60),aYT=r1(aYTM/60);
+  const mPct=pc(d,'mindset'),ePct=pc(d,'exercise');
+  const aRM=r1(av(d,'reading_mins')),aRP=r1(av(d,'reading_pages'));
+  const lrSum=Math.round(sm(d,'lost_reboot')),fines=lrSum*25;
+  const cloudsSum=Math.round(sm(d,'clouds')),cloudExp=r1(cloudsSum*2);
+  const sortedForStreak=[...d].filter(r=>r.Date instanceof Date).sort((a,b)=>b.Date-a.Date);
+  let rebootStreak=0;for(const r of sortedForStreak){if(nv(r.lost_reboot)===0)rebootStreak++;else break;}
+  const labels=d.map(r=>r.Date instanceof Date?r.Date.toLocaleDateString('en-GB',{day:'2-digit',month:'short'}):'?');
+
+  document.getElementById('dashContent').innerHTML=`
+  <div class="quote-banner" id="quoteBanner">
+    <div class="quote-icon">💡</div>
+    <div style="flex:1">
+      <div class="quote-text" id="quoteText">Loading inspiration...</div>
+      <div class="quote-author" id="quoteAuthor"></div>
+    </div>
+    <button class="quote-refresh" id="quoteRefreshBtn" onclick="refreshQuote()" title="New quote">🔄 New Quote</button>
+  </div>
+
+  <!-- OVERVIEW / LEISURE TABS -->
+  <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:10px;margin-bottom:6px">
+    <div class="section-title" style="margin-bottom:0;flex:1">📅 Summary</div>
+    <div class="section-tabs">
+      <button class="stab active" onclick="switchSTab('overview',this)">Overview</button>
+      <button class="stab" onclick="switchSTab('leisure',this)">🎮 Leisure</button>
+    </div>
+  </div>
+
+  <div class="stab-panel active" id="spOverview">
+    <div class="kpi-grid" style="margin-bottom:24px">
+      <div class="kpi-card green"><div class="kpi-label">Avg Reading Speed</div><div class="kpi-value green">${spd}</div><div class="kpi-sub">pages / hour</div></div>
+      <div class="kpi-card blue"><div class="kpi-label">Avg Daily Expense</div><div class="kpi-value blue">${aExp}</div><div class="kpi-sub">KWD / day · total ${tExp} KWD</div></div>
+      <div class="kpi-card green"><div class="kpi-label">Avg Study Time</div><div class="kpi-value green">${aStu}</div><div class="kpi-sub">hrs / day</div></div>
+      <div class="kpi-card blue"><div class="kpi-label">Avg Work Time</div><div class="kpi-value blue">${aWrk}</div><div class="kpi-sub">hrs / day</div></div>
+      <div class="kpi-card pink"><div class="kpi-label">Avg Skill Upgrade</div><div class="kpi-value pink">${aSk}</div><div class="kpi-sub">mins / day</div></div>
+      <div class="kpi-card green"><div class="kpi-label">Positive Mindset</div><div class="kpi-value green">${mPct}%</div><div class="kpi-sub">of days</div></div>
+      <div class="kpi-card ${ePct>=50?'green':'red'}"><div class="kpi-label">Exercise Rate</div><div class="kpi-value ${ePct>=50?'green':'red'}">${ePct}%</div><div class="kpi-sub">of days</div></div>
+      <div class="kpi-card warn"><div class="kpi-label">Avg Oversleep</div><div class="kpi-value warn">${aOs}</div><div class="kpi-sub">hrs / day</div></div>
+      <div class="kpi-card blue"><div class="kpi-label">Avg Reading</div><div class="kpi-value blue">${aRP}</div><div class="kpi-sub">pages/day · ${aRM} mins/day</div></div>
+      <div class="kpi-card pink"><div class="kpi-label">Days Tracked</div><div class="kpi-value pink">${d.length}</div><div class="kpi-sub">total entries</div></div>
+      <div class="kpi-card ${rebootStreak>=7?'green':rebootStreak>=3?'warn':'red'}"><div class="kpi-label">🔥 Reboot Streak</div><div class="kpi-value ${rebootStreak>=7?'green':rebootStreak>=3?'warn':'red'}">${rebootStreak}</div><div class="kpi-sub">consecutive clean days</div></div>
+    </div>
+  </div>
+
+  <div class="stab-panel" id="spLeisure">
+    <div class="kpi-grid" style="margin-bottom:24px">
+      <div class="kpi-card ${aYT<1?'green':'red'}"><div class="kpi-label">Avg YouTube / Netflix</div><div class="kpi-value ${aYT<1?'green':'red'}">${aYT}</div><div class="kpi-sub">hrs / day</div></div>
+      <div class="kpi-card ${aSoc<1?'green':'warn'}"><div class="kpi-label">Avg Social Time</div><div class="kpi-value ${aSoc<1?'green':'warn'}">${aSoc}</div><div class="kpi-sub">hrs / day</div></div>
+      <div class="kpi-card red"><div class="kpi-label">Lost Reboot</div><div class="kpi-value red">${lrSum}</div><div class="kpi-sub">total occurrences</div></div>
+      <div class="kpi-card warn"><div class="kpi-label">⚠️ Fines</div><div class="kpi-value warn">${fines}</div><div class="kpi-sub">KWD · (25 × lost reboots)</div></div>
+      <div class="kpi-card blue"><div class="kpi-label">☁️ Clouds</div><div class="kpi-value blue">${cloudsSum}</div><div class="kpi-sub">total cloud days</div></div>
+      <div class="kpi-card pink"><div class="kpi-label">☁️ Cloud Expense</div><div class="kpi-value pink">${cloudExp}</div><div class="kpi-sub">KWD · (2 × cloud days)</div></div>
+    </div>
+  </div>
+
+  <div class="section-title">📈 Productivity Over Time</div>
+  <div class="chart-grid">
+    <div class="chart-card"><h4>Study · Work · Skill (mins/day)</h4><canvas id="cProd"></canvas></div>
+    <div class="chart-card"><h4>Reading Pages vs Minutes</h4><canvas id="cRead"></canvas></div>
+  </div>
+
+  <div class="section-title">💰 Expense Analysis</div>
+  <div class="chart-grid">
+    <div class="chart-card"><h4>Daily Expense (KWD)</h4><canvas id="cExp"></canvas></div>
+    <div class="chart-card"><h4>Expense by Category</h4><canvas id="cExpCat"></canvas></div>
+  </div>
+
+  <div class="section-title">🧠 Mindset & Wellbeing</div>
+  <div class="chart-grid-3">
+    <div class="chart-card"><h4>Mindset by Week</h4><canvas id="cMindset"></canvas></div>
+    <div class="chart-card"><h4>Time Allocation Radar</h4><canvas id="cRadar"></canvas></div>
+    <div class="chart-card"><h4>Water Intake</h4><canvas id="cWater"></canvas></div>
+  </div>
+
+  <div class="section-title">✅ Habit Completion Rates</div>
+  <div class="habit-grid" id="habitGrid"></div>
+
+  <div class="section-title">🤖 AI Insights <span style="font-family:'DM Mono';font-size:.72rem;color:var(--muted)">Powered by Claude</span></div>
+  <div id="aiInsightsSection">
+    <div class="ai-loading"><div class="ai-spinner"></div>Analysing your data and generating personalised insights...</div>
+  </div>
+
+  <div class="section-title">📋 Logs</div>
+  <div class="chart-card" style="margin-bottom:40px">
+    <div class="log-tabs">
+      <button class="ltab active" onclick="switchLTab('expenses',this)">💸 Expenses</button>
+      <button class="ltab" onclick="switchLTab('habits',this)">✅ Daily Habits</button>
+      <button class="ltab" onclick="switchLTab('productivity',this)">📈 Productivity</button>
+      <button class="ltab" onclick="switchLTab('leisure',this)">🎮 Leisure</button>
+    </div>
+    <div class="ltab-panel active" id="ltExpenses" style="overflow-x:auto">
+      <table class="expense-table"><thead><tr><th>Date</th><th>Category</th><th>Item</th><th>Amount (KWD)</th></tr></thead><tbody id="expenseBody"></tbody></table>
+    </div>
+    <div class="ltab-panel" id="ltHabits" style="overflow-x:auto">
+      <table class="expense-table"><thead><tr><th>Date</th><th>Exercise</th><th>Journal</th><th>Skin Care</th><th>Supplements</th><th>Meditation</th><th>Handwriting</th><th>Junk Food</th><th>Mindset</th></tr></thead><tbody id="habitsBody"></tbody></table>
+    </div>
+    <div class="ltab-panel" id="ltProductivity" style="overflow-x:auto">
+      <table class="expense-table"><thead><tr><th>Date</th><th>Study (min)</th><th>Work (min)</th><th>Skill (min)</th><th>Read Pages</th><th>Read Mins</th></tr></thead><tbody id="prodBody"></tbody></table>
+    </div>
+    <div class="ltab-panel" id="ltLeisure" style="overflow-x:auto">
+      <table class="expense-table"><thead><tr><th>Date</th><th>YouTube (hr)</th><th>Social (hr)</th><th>Lost Reboot</th><th>Oversleep (hr)</th><th>Water</th></tr></thead><tbody id="leisureBody"></tbody></table>
+    </div>
+  </div>`;
+
+  charts.prod=new Chart(document.getElementById('cProd'),{type:'line',data:{labels,datasets:[{label:'Studying',data:d.map(r=>nv(r.studying)),borderColor:CC.g,backgroundColor:CC.g+'22',fill:true,tension:.4,pointRadius:2},{label:'Working',data:d.map(r=>nv(r.working)),borderColor:CC.b,backgroundColor:CC.b+'22',fill:true,tension:.4,pointRadius:2},{label:'Skill',data:d.map(r=>nv(r.skill)),borderColor:CC.p,backgroundColor:CC.p+'22',fill:true,tension:.4,pointRadius:2}]},options:{responsive:true,plugins:{legend:leg()},scales:{x:xA(),y:yA()}}});
+  charts.read=new Chart(document.getElementById('cRead'),{type:'bar',data:{labels,datasets:[{label:'Pages',data:d.map(r=>nv(r.reading_pages)),backgroundColor:CC.b+'bb',yAxisID:'y'},{label:'Mins',data:d.map(r=>nv(r.reading_mins)),type:'line',borderColor:CC.g,backgroundColor:CC.g+'44',tension:.4,pointRadius:2,yAxisID:'y1'}]},options:{responsive:true,plugins:{legend:leg()},scales:{x:xA(),y:{...yA(),title:{display:true,text:'Pages',color:tc()}},y1:{...yA(),position:'right',grid:{display:false},title:{display:true,text:'Mins',color:tc()}}}}});
+  charts.exp=new Chart(document.getElementById('cExp'),{type:'bar',data:{labels,datasets:[{label:'KWD',data:d.map(r=>nv(r.expense_amt)),backgroundColor:d.map(r=>nv(r.expense_amt)>5?CC.w+'cc':CC.g+'88')}]},options:{responsive:true,plugins:{legend:leg()},scales:{x:xA(),y:yA()}}});
+  const cT={};d.forEach(r=>{const c=(r.expense_cat||'Other').toString().trim()||'Other';cT[c]=(cT[c]||0)+nv(r.expense_amt);});
+  charts.expCat=new Chart(document.getElementById('cExpCat'),{type:'doughnut',data:{labels:Object.keys(cT),datasets:[{data:Object.values(cT),backgroundColor:['#c8f060','#60c8f0','#f060c8','#f0c060','#f06060','#a060f0','#60f0a0','#f0a060'],borderColor:isLight?'#ffffff':'#111118',borderWidth:2}]},options:{responsive:true,plugins:{legend:{labels:{color:txC(),font:{family:'DM Mono'}}}}}});
+  const wm={};d.forEach(r=>{if(!(r.Date instanceof Date))return;const w='W'+getWeek(r.Date);if(!wm[w])wm[w]={p:0,t:0};wm[w].t++;if(nv(r.mindset)===1)wm[w].p++;});
+  charts.mindset=new Chart(document.getElementById('cMindset'),{type:'bar',data:{labels:Object.keys(wm),datasets:[{label:'% Positive',data:Object.values(wm).map(v=>Math.round(v.p/v.t*100)),backgroundColor:Object.values(wm).map(v=>v.p/v.t>=.5?CC.g+'cc':CC.r+'cc')}]},options:{responsive:true,plugins:{legend:{display:false}},scales:{x:xA(),y:{...yA(),max:100}}}});
+  charts.radar=new Chart(document.getElementById('cRadar'),{type:'radar',data:{labels:['Studying','Working','Skill','Reading','Social','YouTube'],datasets:[{label:'Avg hrs/day',data:[aStu,aWrk,aSk,r1(aRM/60),aSoc,aYT],backgroundColor:CC.g+'33',borderColor:CC.g,pointBackgroundColor:CC.g}]},options:{responsive:true,scales:{r:{ticks:{color:tc(),backdropColor:'transparent'},grid:{color:gc()},pointLabels:{color:txC(),font:{family:'DM Mono',size:11}}}},plugins:{legend:{display:false}}}});
+  const wcnt={Poor:0,Medium:0,High:0};d.forEach(r=>{const w=(r.water||'Poor').toString().trim();if(wcnt[w]!==undefined)wcnt[w]++;});
+  charts.water=new Chart(document.getElementById('cWater'),{type:'pie',data:{labels:['Poor','Medium','High'],datasets:[{data:[wcnt.Poor,wcnt.Medium,wcnt.High],backgroundColor:[CC.r+'cc',CC.w+'cc',CC.g+'cc'],borderColor:isLight?'#ffffff':'#111118',borderWidth:2}]},options:{responsive:true,plugins:{legend:{labels:{color:txC(),font:{family:'DM Mono'}}}}}});
+
+  const habits=[{k:'exercise',l:'Exercise'},{k:'journal',l:'Journal'},{k:'skincare',l:'Skin Care'},{k:'supplements',l:'Supplements'},{k:'job_app',l:'Job Application'},{k:'system_reboot',l:'System Reboot'},{k:'junk_food',l:'Junk Food 🚫'},{k:'news',l:'News Headlines'},{k:'eye_contact',l:'Eye Contact'},{k:'observe_base',l:'Observe Baseline'},{k:'observe_feet',l:'Observe Feet'},{k:'confidence',l:'Confidence'},{k:'good_q',l:'Good Q'},{k:'word',l:'Word'},{k:'gf',l:'GF'},{k:'meditation',l:'Meditation'},{k:'handwriting',l:'Handwriting'}];
+  document.getElementById('habitGrid').innerHTML=habits.map(h=>{const p=pc(d,h.k);const col=h.k==='junk_food'?(p<30?'var(--accent)':'var(--danger)'):(p>=70?'var(--accent)':p>=40?'var(--warn)':'var(--danger)');return`<div class="habit-row"><span class="habit-name">${h.l}</span><div class="habit-bar-wrap"><div class="habit-bar" style="width:${p}%;background:${col}"></div></div><span class="habit-pct" style="color:${col}">${p}%</span></div>`;}).join('');
+
+  // Expense log
+  const catCM={Food:'#c8f06033',Travel:'#60c8f033',Gang:'#f060c833',Luna:'#f0c06033',Event:'#a060f033',Purchase:'#60f0a033',NONE:'#2a2a3a'};
+  const sortedD=d.filter(r=>r.Date instanceof Date).sort((a,b)=>b.Date-a.Date);
+  document.getElementById('expenseBody').innerHTML=sortedD.filter(r=>nv(r.expense_amt)>0).map(r=>{const cat=(r.expense_cat||'').toString().trim();return`<tr><td>${r.Date.toLocaleDateString('en-GB')}</td><td><span class="cat-badge" style="background:${catCM[cat]||'#2a2a3a'};color:var(--text)">${cat||'-'}</span></td><td>${r.expense_item||'-'}</td><td style="color:var(--accent)">${nv(r.expense_amt).toFixed(3)}</td></tr>`;}).join('');
+
+  // Habits log
+  const yesNo=v=>nv(v)===1?`<span style="color:var(--accent)">✓</span>`:`<span style="color:var(--danger)">✗</span>`;
+  document.getElementById('habitsBody').innerHTML=sortedD.map(r=>`<tr>
+    <td>${r.Date.toLocaleDateString('en-GB')}</td>
+    <td>${yesNo(r.exercise)}</td><td>${yesNo(r.journal)}</td><td>${yesNo(r.skincare)}</td>
+    <td>${yesNo(r.supplements)}</td><td>${yesNo(r.meditation)}</td><td>${yesNo(r.handwriting)}</td>
+    <td>${yesNo(r.junk_food)}</td>
+    <td><span style="color:${nv(r.mindset)===1?'var(--accent)':'var(--danger)'}">${nv(r.mindset)===1?'😊 Positive':'😔 Negative'}</span></td>
+  </tr>`).join('');
+
+  // Productivity log
+  document.getElementById('prodBody').innerHTML=sortedD.map(r=>`<tr>
+    <td>${r.Date.toLocaleDateString('en-GB')}</td>
+    <td style="color:${nv(r.studying)>0?'var(--accent)':'var(--muted)'}">${nv(r.studying)}</td>
+    <td style="color:${nv(r.working)>0?'var(--accent2)':'var(--muted)'}">${nv(r.working)}</td>
+    <td style="color:${nv(r.skill)>0?'var(--accent3)':'var(--muted)'}">${nv(r.skill)}</td>
+    <td>${nv(r.reading_pages)||'-'}</td>
+    <td>${nv(r.reading_mins)||'-'}</td>
+  </tr>`).join('');
+
+  // Leisure log
+  document.getElementById('leisureBody').innerHTML=sortedD.map(r=>{
+    const ytH=r1(nv(r.youtube)/60),socH=r1(nv(r.social)/60);
+    return`<tr>
+    <td>${r.Date.toLocaleDateString('en-GB')}</td>
+    <td style="color:${ytH>1.5?'var(--danger)':ytH>0.75?'var(--warn)':'var(--muted)'}">${ytH||'-'}</td>
+    <td style="color:${socH>1.5?'var(--warn)':'var(--muted)'}">${socH||'-'}</td>
+    <td style="color:${nv(r.lost_reboot)>0?'var(--danger)':'var(--muted)'}">${nv(r.lost_reboot)>0?'⚠️ Yes':'No'}</td>
+    <td style="color:${nv(r.oversleep)>1?'var(--warn)':'var(--muted)'}">${nv(r.oversleep)||'-'}</td>
+    <td><span style="padding:2px 8px;border-radius:99px;font-size:.7rem;background:${r.water==='High'?'rgba(200,240,96,.15)':r.water==='Medium'?'rgba(240,192,96,.15)':'rgba(240,96,96,.15)'};color:${r.water==='High'?'var(--accent)':r.water==='Medium'?'var(--warn)':'var(--danger)'}">${r.water||'-'}</span></td>
+  </tr>`;}).join('');
+
+  // Quote
+  refreshQuote();
+
+  // AI Insights
+  const wcArr=d.map(r=>(r.water||'Poor').toString().trim());
+  const waterCounts={Poor:0,Medium:0,High:0};wcArr.forEach(w=>{if(waterCounts[w]!==undefined)waterCounts[w]++;});
+  const waterMode=Object.entries(waterCounts).sort((a,b)=>b[1]-a[1])[0][0];
+  _aiStats={days:d.length,aStu:aStuM,aWrk:aWrkM,aSk,spd,aRP,aRM,ePct,mPct,aYT:aYTM,aSoc:aSocM,aOs,lrSum,fines,aExp,
+    medPct:pc(d,'meditation'),jPct:pc(d,'journal'),scPct:pc(d,'skincare'),supPct:pc(d,'supplements'),
+    jfPct:pc(d,'junk_food'),hwPct:pc(d,'handwriting'),confPct:pc(d,'confidence'),
+    gqPct:pc(d,'good_q'),ecPct:pc(d,'eye_contact'),waterMode};
+  generateAIInsights(_aiStats);
+}
+
+// 2P Comparison
+function calcS(d){
+  const N=d.length||1,rR=d.filter(r=>nv(r.reading_mins)>0);
+  return{days:d.length,spd:rR.length?r1(rR.reduce((a,r)=>a+(nv(r.reading_pages)/nv(r.reading_mins)*60),0)/rR.length):0,
+    exp:r1(sm(d,'expense_amt')/N),tExp:r1(sm(d,'expense_amt')),
+    stu:r1(av(d,'studying')),wrk:r1(av(d,'working')),sk:r1(av(d,'skill')),
+    soc:r1(av(d,'social')),yt:r1(av(d,'youtube')),os:r1(av(d,'oversleep')),
+    rM:r1(av(d,'reading_mins')),rP:r1(av(d,'reading_pages')),
+    lr:Math.round(sm(d,'lost_reboot')),fines:Math.round(sm(d,'lost_reboot'))*25,
+    mindset:pc(d,'mindset'),exercise:pc(d,'exercise'),journal:pc(d,'journal'),skincare:pc(d,'skincare'),
+    supplements:pc(d,'supplements'),job_app:pc(d,'job_app'),system_reboot:pc(d,'system_reboot'),
+    junk_food:pc(d,'junk_food'),news:pc(d,'news'),eye_contact:pc(d,'eye_contact'),
+    observe_base:pc(d,'observe_base'),observe_feet:pc(d,'observe_feet'),confidence:pc(d,'confidence'),
+    good_q:pc(d,'good_q'),word:pc(d,'word'),gf:pc(d,'gf'),meditation:pc(d,'meditation'),handwriting:pc(d,'handwriting')};
+}
+
+function cmpRow(label,v1,v2,unit='',hib=true){
+  const mx=Math.max(v1,v2)||1;
+  const w1=Math.round(v1/mx*100),w2=Math.round(v2/mx*100);
+  const p1w=hib?v1>=v2:v1<=v2;
+  const badge=v1===v2?`<span class="winner-badge" style="background:var(--surface2);color:var(--muted)">🤝 Tie</span>`
+    :(p1w?`<span class="winner-badge win-green">🏆 ${nm1}</span>`:`<span class="winner-badge win-pink">🏆 ${nm2}</span>`);
+  return`<div style="margin-bottom:14px">
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px">
+      <span style="font-size:.72rem;color:var(--muted);text-transform:uppercase;letter-spacing:1px">${label}</span>${badge}
+    </div>
+    <div style="display:flex;align-items:center;gap:8px;margin-bottom:5px">
+      <span style="font-size:.72rem;min-width:72px;color:var(--p1)">${nm1}</span>
+      <div style="flex:1;height:9px;background:var(--surface2);border-radius:99px;overflow:hidden"><div style="height:100%;width:${w1}%;background:var(--p1);border-radius:99px;transition:width .8s ease"></div></div>
+      <span style="font-family:'DM Serif Display',serif;font-size:1.05rem;color:var(--p1);min-width:54px;text-align:right">${v1}${unit}</span>
+    </div>
+    <div style="display:flex;align-items:center;gap:8px">
+      <span style="font-size:.72rem;min-width:72px;color:var(--p2)">${nm2}</span>
+      <div style="flex:1;height:9px;background:var(--surface2);border-radius:99px;overflow:hidden"><div style="height:100%;width:${w2}%;background:var(--p2);border-radius:99px;transition:width .8s ease"></div></div>
+      <span style="font-family:'DM Serif Display',serif;font-size:1.05rem;color:var(--p2);min-width:54px;text-align:right">${v2}${unit}</span>
+    </div>
+  </div>`;
+}
+
+function renderComparison(){
+  Object.values(chartsComp).forEach(c=>c.destroy());chartsComp={};
+  const s1=calcS(filtP1),s2=calcS(filtP2);
+  const metrics=[{a:s1.spd,b:s2.spd,h:1},{a:s1.stu,b:s2.stu,h:1},{a:s1.wrk,b:s2.wrk,h:1},{a:s1.sk,b:s2.sk,h:1},{a:s1.mindset,b:s2.mindset,h:1},{a:s1.exercise,b:s2.exercise,h:1},{a:s1.yt,b:s2.yt,h:0},{a:s1.junk_food,b:s2.junk_food,h:0},{a:s1.os,b:s2.os,h:0},{a:s1.meditation,b:s2.meditation,h:1},{a:s1.journal,b:s2.journal,h:1},{a:s1.handwriting,b:s2.handwriting,h:1}];
+  let sc1=0,sc2=0;metrics.forEach(m=>{if(m.a===m.b)return;if(m.h?m.a>m.b:m.a<m.b)sc1++;else sc2++;});
+  const ow=sc1>sc2?nm1:sc2>sc1?nm2:'Tie';
+  const owCol=sc1>sc2?'var(--p1)':sc2>sc1?'var(--p2)':'var(--muted)';
+
+  const allDs=Array.from(new Set([...filtP1,...filtP2].map(r=>r.Date instanceof Date?fmt(r.Date):null).filter(Boolean))).sort();
+  const gv=(data,date,key)=>{const row=data.find(r=>r.Date instanceof Date&&fmt(r.Date)===date);return row?nv(row[key]):0;};
+  const sd=ds=>new Date(ds).toLocaleDateString('en-GB',{day:'2-digit',month:'short'});
+
+  document.getElementById('compContent').innerHTML=`
+  <div style="background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);padding:24px;margin-bottom:28px;text-align:center">
+    <div style="font-size:.7rem;color:var(--muted);text-transform:uppercase;letter-spacing:2px;margin-bottom:10px">Overall Winner</div>
+    <div style="font-family:'DM Serif Display',serif;font-size:3rem;color:${owCol}">${ow==='Tie'?'🤝 Tie':'🏆 '+ow}</div>
+    <div style="display:flex;justify-content:center;gap:24px;margin-top:12px">
+      <span style="color:var(--p1);font-size:.88rem">${nm1}: ${sc1} wins</span>
+      <span style="color:var(--muted)">·</span>
+      <span style="color:var(--p2);font-size:.88rem">${nm2}: ${sc2} wins</span>
+    </div>
+  </div>
+  <div class="section-title">📊 Head-to-Head Metrics</div>
+  <div class="comp-kpi-grid">
+    <div class="chart-card"><h4>Productivity</h4>${cmpRow('Avg Study Time',s1.stu,s2.stu,' min')}${cmpRow('Avg Work Time',s1.wrk,s2.wrk,' min')}${cmpRow('Avg Skill Upgrade',s1.sk,s2.sk,' min')}</div>
+    <div class="chart-card"><h4>Reading & Knowledge</h4>${cmpRow('Reading Speed',s1.spd,s2.spd,' pg/hr')}${cmpRow('Avg Pages / Day',s1.rP,s2.rP,' pgs')}${cmpRow('Avg Read Time',s1.rM,s2.rM,' min')}</div>
+    <div class="chart-card"><h4>Mindset & Discipline</h4>${cmpRow('Positive Mindset',s1.mindset,s2.mindset,'%')}${cmpRow('Exercise Rate',s1.exercise,s2.exercise,'%')}${cmpRow('Meditation',s1.meditation,s2.meditation,'%')}</div>
+    <div class="chart-card"><h4>Screen & Social</h4>${cmpRow('YouTube / Netflix',s1.yt,s2.yt,' min',false)}${cmpRow('Social Time',s1.soc,s2.soc,' min',false)}${cmpRow('Junk Food Days',s1.junk_food,s2.junk_food,'%',false)}</div>
+    <div class="chart-card"><h4>Finance</h4>${cmpRow('Avg Daily Expense',s1.exp,s2.exp,' KWD',false)}${cmpRow('Total Expense',s1.tExp,s2.tExp,' KWD',false)}${cmpRow('Lost Reboots',s1.lr,s2.lr,'',false)}</div>
+    <div class="chart-card"><h4>⚠️ Fines & Sleep</h4>${cmpRow('Fines (KWD)',s1.fines,s2.fines,' KWD',false)}${cmpRow('Oversleep',s1.os,s2.os,' hr',false)}${cmpRow('Days Tracked',s1.days,s2.days,'')}</div>
+  </div>
+  <div class="section-title">📈 Productivity Over Time</div>
+  <div class="chart-grid">
+    <div class="chart-card"><h4>Study Time Comparison</h4><canvas id="ccStu"></canvas></div>
+    <div class="chart-card"><h4>Screen Time Comparison</h4><canvas id="ccYT"></canvas></div>
+  </div>
+  <div class="section-title">🎯 Radar & Expense</div>
+  <div class="chart-grid">
+    <div class="chart-card"><h4>Overall Radar Comparison</h4><canvas id="ccRadar"></canvas></div>
+    <div class="chart-card"><h4>Daily Expense Comparison</h4><canvas id="ccExp"></canvas></div>
+  </div>
+  <div class="section-title">✅ Habit Battle</div>
+  <div class="chart-card" style="margin-bottom:40px"><canvas id="ccHabit" style="max-height:380px"></canvas></div>`;
+
+  chartsComp.stu=new Chart(document.getElementById('ccStu'),{type:'line',data:{labels:allDs.map(sd),datasets:[{label:nm1,data:allDs.map(d=>gv(filtP1,d,'studying')),borderColor:CC.g,backgroundColor:CC.g+'22',fill:true,tension:.4,pointRadius:2},{label:nm2,data:allDs.map(d=>gv(filtP2,d,'studying')),borderColor:CC.p,backgroundColor:CC.p+'22',fill:true,tension:.4,pointRadius:2}]},options:{responsive:true,plugins:{legend:leg()},scales:{x:xA(),y:yA()}}});
+  chartsComp.yt=new Chart(document.getElementById('ccYT'),{type:'line',data:{labels:allDs.map(sd),datasets:[{label:nm1,data:allDs.map(d=>gv(filtP1,d,'youtube')),borderColor:CC.g,backgroundColor:CC.g+'22',fill:true,tension:.4,pointRadius:2},{label:nm2,data:allDs.map(d=>gv(filtP2,d,'youtube')),borderColor:CC.p,backgroundColor:CC.p+'22',fill:true,tension:.4,pointRadius:2}]},options:{responsive:true,plugins:{legend:leg()},scales:{x:xA(),y:yA()}}});
+  chartsComp.radar=new Chart(document.getElementById('ccRadar'),{type:'radar',data:{labels:['Study','Work','Skill','Read','Mindset%','Exercise%'],datasets:[{label:nm1,data:[s1.stu,s1.wrk,s1.sk,s1.rM,s1.mindset,s1.exercise],backgroundColor:CC.g+'33',borderColor:CC.g,pointBackgroundColor:CC.g},{label:nm2,data:[s2.stu,s2.wrk,s2.sk,s2.rM,s2.mindset,s2.exercise],backgroundColor:CC.p+'33',borderColor:CC.p,pointBackgroundColor:CC.p}]},options:{responsive:true,scales:{r:{ticks:{color:tc(),backdropColor:'transparent'},grid:{color:gc()},pointLabels:{color:txC(),font:{family:'DM Mono',size:11}}}},plugins:{legend:leg()}}});
+  chartsComp.exp=new Chart(document.getElementById('ccExp'),{type:'bar',data:{labels:allDs.map(sd),datasets:[{label:nm1,data:allDs.map(d=>gv(filtP1,d,'expense_amt')),backgroundColor:CC.g+'99'},{label:nm2,data:allDs.map(d=>gv(filtP2,d,'expense_amt')),backgroundColor:CC.p+'99'}]},options:{responsive:true,plugins:{legend:leg()},scales:{x:xA(),y:yA()}}});
+  const hKeys=['exercise','journal','skincare','supplements','meditation','handwriting','confidence','good_q','word','news','eye_contact','observe_base'];
+  const hLabels=['Exercise','Journal','Skin Care','Supplements','Meditation','Handwriting','Confidence','Good Q','Word','News','Eye Contact','Observe Base'];
+  chartsComp.habit=new Chart(document.getElementById('ccHabit'),{type:'bar',data:{labels:hLabels,datasets:[{label:nm1,data:hKeys.map(k=>pc(filtP1,k)),backgroundColor:CC.g+'bb'},{label:nm2,data:hKeys.map(k=>pc(filtP2,k)),backgroundColor:CC.p+'bb'}]},options:{responsive:true,indexAxis:'y',plugins:{legend:leg()},scales:{x:{...xA(),max:100},y:yA()}}});
+}
+
+// ── TAB SWITCHERS ──
+function switchSTab(name,btn){
+  document.querySelectorAll('.stab').forEach(t=>t.classList.remove('active'));
+  document.querySelectorAll('.stab-panel').forEach(p=>p.classList.remove('active'));
+  btn.classList.add('active');
+  document.getElementById('sp'+name.charAt(0).toUpperCase()+name.slice(1)).classList.add('active');
+}
+function switchLTab(name,btn){
+  document.querySelectorAll('.ltab').forEach(t=>t.classList.remove('active'));
+  document.querySelectorAll('.ltab-panel').forEach(p=>p.classList.remove('active'));
+  btn.classList.add('active');
+  const ids={expenses:'ltExpenses',habits:'ltHabits',productivity:'ltProductivity',leisure:'ltLeisure'};
+  const el=document.getElementById(ids[name]);if(el)el.classList.add('active');
+}
+
+Chart.defaults.color='#7070a0';
+Chart.defaults.borderColor='#2a2a3a';
+
+// ── QUOTES ──
+const QUOTES=[
+  {q:"The secret of getting ahead is getting started.",a:"Mark Twain"},
+  {q:"It's not about having time. It's about making time.",a:"Anonymous"},
+  {q:"Focus on being productive instead of busy.",a:"Tim Ferriss"},
+  {q:"The way to get started is to quit talking and begin doing.",a:"Walt Disney"},
+  {q:"You don't have to be great to start, but you have to start to be great.",a:"Zig Ziglar"},
+  {q:"Either you run the day, or the day runs you.",a:"Jim Rohn"},
+  {q:"Productivity is never an accident. It is always the result of a commitment to excellence.",a:"Paul J. Meyer"},
+  {q:"Until we can manage time, we can manage nothing else.",a:"Peter Drucker"},
+  {q:"Action is the foundational key to all success.",a:"Pablo Picasso"},
+  {q:"Done is better than perfect.",a:"Sheryl Sandberg"},
+  {q:"Small daily improvements over time lead to stunning results.",a:"Robin Sharma"},
+  {q:"You will never find time for anything. You must make it.",a:"Charles Buxton"},
+  {q:"Success is the sum of small efforts repeated day in and day out.",a:"Robert Collier"},
+  {q:"Your future is created by what you do today, not tomorrow.",a:"Robert Kiyosaki"},
+  {q:"The key is not to prioritise what's on your schedule, but to schedule your priorities.",a:"Stephen Covey"},
+  {q:"Discipline is the bridge between goals and accomplishment.",a:"Jim Rohn"},
+  {q:"Motivation gets you going, but discipline keeps you growing.",a:"John C. Maxwell"},
+  {q:"We are what we repeatedly do. Excellence is not an act, but a habit.",a:"Aristotle"},
+  {q:"Don't watch the clock; do what it does. Keep going.",a:"Sam Levenson"},
+  {q:"Absorb what is useful, discard what is useless, add what is essentially your own.",a:"Bruce Lee"},
+  {q:"An investment in knowledge pays the best interest.",a:"Benjamin Franklin"},
+  {q:"The beautiful thing about learning is nobody can take it away from you.",a:"B.B. King"},
+  {q:"Reading is to the mind what exercise is to the body.",a:"Joseph Addison"},
+  {q:"The more that you read, the more things you will know.",a:"Dr. Seuss"},
+  {q:"Take care of your body. It's the only place you have to live.",a:"Jim Rohn"}
+];
+let lastQuoteIdx=-1;
+function refreshQuote(){
+  const btn=document.getElementById('quoteRefreshBtn');
+  if(btn){btn.classList.add('spinning');setTimeout(()=>btn.classList.remove('spinning'),600);}
+  let idx;do{idx=Math.floor(Math.random()*QUOTES.length);}while(idx===lastQuoteIdx&&QUOTES.length>1);
+  lastQuoteIdx=idx;
+  const el=document.getElementById('quoteText'),ae=document.getElementById('quoteAuthor');
+  if(el){el.style.opacity='0';setTimeout(()=>{el.textContent='"'+QUOTES[idx].q+'"';el.style.transition='opacity .4s';el.style.opacity='1';},200);}
+  if(ae)ae.textContent='— '+QUOTES[idx].a;
+}
+
+// ── AI INSIGHTS via Claude API ──
+async function generateAIInsights(stats){
+  const section=document.getElementById('aiInsightsSection');
+  if(!section)return;
+  section.innerHTML='<div class="ai-loading"><div class="ai-spinner"></div>Claude is analysing your data and crafting personalised recommendations...</div>';
+
+  const prompt=`You are a personal productivity coach analysing someone's daily life tracker data. Based on the stats below, give specific, actionable, motivating insights and improvement suggestions. Be direct, personal, and encouraging. Focus on what they should improve and celebrate what they are doing well.
+
+DATA SUMMARY (${stats.days} days tracked):
+- Avg Study Time: ${stats.aStu} mins/day
+- Avg Work Time: ${stats.aWrk} mins/day  
+- Avg Skill Upgrade: ${stats.aSk} mins/day
+- Reading Speed: ${stats.spd} pages/hour | Avg ${stats.aRP} pages/day in ${stats.aRM} mins
+- Exercise: ${stats.ePct}% of days
+- Positive Mindset: ${stats.mPct}% of days
+- Meditation: ${stats.medPct}% of days
+- Journal: ${stats.jPct}% of days
+- Skin Care: ${stats.scPct}% of days
+- Supplements: ${stats.supPct}% of days
+- Junk Food: ${stats.jfPct}% of days (lower is better)
+- YouTube/Netflix: ${stats.aYT} mins/day avg (lower is better)
+- Social Media: ${stats.aSoc} mins/day avg
+- Oversleep: ${stats.aOs} hrs/day
+- Lost Reboots: ${stats.lrSum} total (each costs 25 KWD fine)
+- Fines accumulated: ${stats.fines} KWD
+- Avg Daily Expense: ${stats.aExp} KWD
+- Handwriting practice: ${stats.hwPct}% of days
+- Confidence tracked: ${stats.confPct}% of days
+- Good Questions: ${stats.gqPct}% of days
+- Eye Contact practice: ${stats.ecPct}% of days
+- Water intake: mostly ${stats.waterMode}
+
+Give your response as a JSON array of insight objects, each with: type ("danger"|"warn"|"good"|"tip"), icon (emoji), title (short, punchy), body (2-3 sentences of specific advice), stat (a key number or short phrase to highlight). Return ONLY the JSON array, no markdown, no explanation. Include 6-8 insights total covering: biggest weakness, biggest strength, habit improvements, time management, financial/discipline, and a motivational tip.`;
+
+  try{
+    const res=await fetch('https://api.anthropic.com/v1/messages',{
+      method:'POST',
+      headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({model:'claude-sonnet-4-20250514',max_tokens:1000,messages:[{role:'user',content:prompt}]})
+    });
+    const data=await res.json();
+    const raw=data.content.map(i=>i.text||'').join('');
+    const clean=raw.replace(/```json|```/g,'').trim();
+    const insights=JSON.parse(clean);
+    renderAIInsights(insights);
+  }catch(e){
+    // fallback: generate rule-based insights
+    const insights=generateRuleInsights(stats);
+    renderAIInsights(insights);
+  }
+}
+
+function generateRuleInsights(s){
+  const ins=[];
+  // Exercise
+  if(s.ePct<50)ins.push({type:'danger',icon:'🏃',title:'Exercise Urgency',body:`You only exercised ${s.ePct}% of days. Physical activity boosts cognitive function, mood, and energy. Aim for at least 5 days a week — even a 20 minute walk counts. Schedule it like a meeting.`,stat:`${s.ePct}% days`});
+  else ins.push({type:'good',icon:'💪',title:'Solid Exercise Habit',body:`Exercising ${s.ePct}% of days is commendable. Keep the momentum — consistency here is the single biggest predictor of long-term energy and focus.`,stat:`${s.ePct}% days`});
+  // YouTube
+  if(s.aYT>90)ins.push({type:'danger',icon:'📺',title:'Screen Time is Stealing Hours',body:`${s.aYT} mins/day on YouTube/Netflix is ${Math.round(s.aYT/60*10)/10} hours daily — that's significant. Replace just 30 mins with reading or skill practice to reclaim 15+ hours a month.`,stat:`${s.aYT} min/day`});
+  else if(s.aYT>45)ins.push({type:'warn',icon:'📺',title:'Watch Your Screen Time',body:`${s.aYT} mins/day on screens is borderline. Be intentional — use it as a reward after completing your study and work goals, not as a default activity.`,stat:`${s.aYT} min/day`});
+  // Study
+  if(s.aStu<60)ins.push({type:'warn',icon:'📚',title:'Boost Study Time',body:`Averaging ${s.aStu} mins/day of studying is below optimal. Even one focused Pomodoro session (25 mins) more per day compounds to 12+ hours monthly. Protect your study blocks.`,stat:`${s.aStu} min/day`});
+  else ins.push({type:'good',icon:'📚',title:'Great Study Discipline',body:`${s.aStu} mins/day of focused study is impressive. Pair it with spaced repetition and your retention will skyrocket. Keep protecting these blocks.`,stat:`${s.aStu} min/day`});
+  // Meditation
+  if(s.medPct<30)ins.push({type:'tip',icon:'🧘',title:'Start a Meditation Habit',body:`Only ${s.medPct}% meditation consistency. Even 5-10 minutes of daily mindfulness reduces stress, sharpens focus, and improves emotional regulation. Start small — just 5 mins after waking.`,stat:`${s.medPct}% days`});
+  // Fines
+  if(s.fines>0)ins.push({type:'danger',icon:'⚠️',title:`${s.fines} KWD in Fines`,body:`${s.lrSum} lost reboots at 25 KWD each = ${s.fines} KWD. Every lost reboot is both a financial and a discipline setback. Build a pre-bed checklist to make system reboots automatic.`,stat:`${s.fines} KWD`});
+  // Mindset
+  if(s.mPct>=70)ins.push({type:'good',icon:'🧠',title:'Positive Mindset Streak',body:`${s.mPct}% positive mindset days is excellent. Journal on negative days to identify patterns — what triggers the low days so you can address the root cause.`,stat:`${s.mPct}% positive`});
+  else ins.push({type:'warn',icon:'🧠',title:'Strengthen Your Mindset',body:`Only ${s.mPct}% positive mindset days. Morning gratitude, journaling, and movement are proven to shift your baseline. Identify the top 2 triggers for negative days and address them directly.`,stat:`${s.mPct}% positive`});
+  // Reading
+  if(s.spd>0)ins.push({type:'tip',icon:'📖',title:`Reading at ${s.spd} Pages/Hour`,body:`Your reading speed is ${s.spd} pages/hour averaging ${s.aRP} pages per day. ${s.spd<15?'Try sub-vocalisation reduction techniques to increase speed.':s.spd>25?'Excellent pace — now focus on retention with brief summaries after each session.':'Good pace — try to increase by 20% with focused daily practice.'}`,stat:`${s.spd} pg/hr`});
+  // Water
+  if(s.waterMode==='Poor')ins.push({type:'warn',icon:'💧',title:'Hydration Needs Work',body:'Most days show poor water intake. Dehydration directly reduces cognitive performance by up to 20%. Set hourly phone reminders and keep a water bottle on your desk at all times.',stat:'Mostly Poor'});
+  return ins.slice(0,8);
+}
+
+function renderAIInsights(insights){
+  const section=document.getElementById('aiInsightsSection');
+  if(!section)return;
+  section.innerHTML=`
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:14px;flex-wrap:wrap;gap:8px">
+      <div class="ai-claude-badge">✦ Powered by Claude AI</div>
+      <button class="ai-refresh-btn" onclick="runAIInsights()">🔄 Regenerate Insights</button>
+    </div>
+    <div class="ai-insights-grid">${insights.map(i=>`
+      <div class="ai-card ai-${i.type}">
+        <div class="ai-card-icon">${i.icon}</div>
+        <div class="ai-card-title">${i.title}</div>
+        <div class="ai-card-body">${i.body}</div>
+        <div class="ai-card-stat">${i.stat}</div>
+      </div>`).join('')}
+    </div>`;
+}
+
+let _aiStats=null;
+function runAIInsights(){
+  if(_aiStats)generateAIInsights(_aiStats);
+}
+
+</script>
+</body>
+</html>
